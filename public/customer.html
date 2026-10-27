@@ -16,62 +16,19 @@
         .ready-card { background: #0F4C3A; color: white; border: 1px solid #0F4C3A; }
         .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; color: #D4AF37; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
-        
-        /* Adjusted sizing to enforce single-line layout and added clear separation margin */
-        .giant-ready-text { 
-            color: #D4AF37; 
-            font-size: 28px; 
-            font-weight: 900; 
-            letter-spacing: 0.5px; 
-            margin-top: 24px; 
-            margin-bottom: 16px;
-            font-family: 'Georgia', serif;
-            white-space: nowrap;
-        }
-
-        .order-badge {
-            background-color: #D4AF37;
-            color: #0F4C3A;
-            display: inline-block;
-            font-size: 42px;
-            font-weight: 900;
-            padding: 4px 24px;
-            border-radius: 12px;
-            margin: 12px auto;
-            font-family: sans-serif;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-        }
-
-        .mute-btn {
-            background: transparent;
-            color: #D4AF37;
-            border: 2px solid #D4AF37;
-            margin-bottom: 12px;
-            padding: 12px;
-            font-size: 14px;
-            width: 100%;
-            font-weight: bold;
-            border-radius: 12px;
-            cursor: pointer;
-            box-sizing: border-box;
-        }
-        .mute-btn:hover {
-            background: rgba(212, 175, 55, 0.1);
-        }
+        .giant-ready-text { color: #D4AF37; font-size: 28px; font-weight: 900; letter-spacing: 0.5px; margin-top: 24px; margin-bottom: 16px; font-family: 'Georgia', serif; white-space: nowrap; }
+        .order-badge { background-color: #D4AF37; color: #0F4C3A; display: inline-block; font-size: 42px; font-weight: 900; padding: 4px 24px; border-radius: 12px; margin: 12px auto; font-family: sans-serif; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .mute-btn { background: transparent; color: #D4AF37; border: 2px solid #D4AF37; margin-bottom: 12px; padding: 12px; font-size: 14px; width: 100%; font-weight: bold; border-radius: 12px; cursor: pointer; box-sizing: border-box; }
+        .mute-btn:hover { background: rgba(212, 175, 55, 0.1); }
     </style>
-    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-
-    <!-- 1. ENTRY SCREEN -->
     <div id="setup-screen" class="card">
         <div class="brand-header">QAMARIA YEMENI COFFEE</div>
         <p style="color: #6b6661; font-size: 14px; margin-bottom: 24px; font-family: sans-serif;">Enter your order number. We'll buzz you when it's ready!</p>
         <input type="number" pattern="[0-9]*" inputmode="numeric" id="order-input" placeholder="e.g. 42">
         <button id="start-btn">🔔 Start Tracking</button>
     </div>
-
-    <!-- 2. WAITING SCREEN -->
     <div id="waiting-screen" class="card hidden">
         <div class="brand-header">QAMARIA YEMENI COFFEE</div>
         <div class="pulse" style="font-size: 48px; margin-bottom: 20px;">⏳</div>
@@ -79,26 +36,16 @@
         <p style="color: #6b6661; font-size: 14px; font-family: sans-serif; margin-bottom: 16px;">Your traditional brew is being crafted. Keep this page open!</p>
         <p style="color: #0F4C3A; background-color: #f1efe7; padding: 10px; border-radius: 8px; font-size: 12px; font-weight: bold; margin: 0; font-family: sans-serif; border: 1px solid #e2dfd5;">⚠️ MUST turn ON iPhone Ringer Switch (on the side of your phone)!</p>
     </div>
-
-    <!-- 3. READY SCREEN -->
     <div id="ready-screen" class="card ready-card hidden">
-        <!-- Logo illustration icon placeholder space -->
         <div class="brand-header" style="color: white; margin-bottom: 0;">QAMARIA YEMENI COFFEE</div>
-        
-        <!-- One-line layout element separated cleanly from brand name -->
         <div class="giant-ready-text">ORDER READY! 😊</div>
-        
         <div class="text-xs uppercase tracking-widest text-emerald-200 font-sans font-bold">Verify Counter Receipt</div>
         <div id="ready-order-badge" class="order-badge">#--</div>
-
         <h2 style="font-size: 16px; margin-bottom: 24px; font-family: sans-serif; font-weight: normal; color: #fcfbf7; line-height: 1.4;">Please present this screen to the counter to collect your items.</h2>
-        
         <button id="mute-btn" class="mute-btn">⏹️ Mute Alarm</button>
         <button onclick="window.location.reload()" style="background: white; color: #0F4C3A; border: 1px solid white;">Track Another Order</button>
     </div>
-
     <script>
-        const socket = io();
         const setupScreen = document.getElementById('setup-screen');
         const waitingScreen = document.getElementById('waiting-screen');
         const readyScreen = document.getElementById('ready-screen');
@@ -108,71 +55,59 @@
         const readyOrderBadge = document.getElementById('ready-order-badge');
         const muteBtn = document.getElementById('mute-btn');
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const storeLocation = urlParams.get('loc') || '1';
+
         let sharedAudioCtx = null;
-        let repeatingInterval = null; 
+        let repeatingInterval = null;
+        let trackingInterval = null;
 
         function activateiOSAudioEngine() {
             try {
                 sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const buffer = sharedAudioCtx.createBuffer(1, 1, 22050);
-                const source = sharedAudioCtx.createBufferSource();
-                source.buffer = buffer;
-                source.connect(sharedAudioCtx.destination);
-                source.start(0);
-                console.log("🔒 iOS Audio Engine successfully unlocked.");
-            } catch (e) {
-                console.error("Audio system warmup failed:", e);
-            }
+                const b = sharedAudioCtx.createBuffer(1, 1, 22050);
+                const s = sharedAudioCtx.createBufferSource();
+                s.buffer = b; s.connect(sharedAudioCtx.destination); s.start(0);
+            } catch (e) {}
         }
 
         function playSingleChimePass() {
             if (!sharedAudioCtx) return;
             try {
-                const melody = [
-                    { time: 0.0, freq: 523.25, volume: 0.4 }, // C5
-                    { time: 0.1, freq: 659.25, volume: 0.4 }, // E5
-                    { time: 0.2, freq: 783.99, volume: 0.4 }, // G5
-                    { time: 0.3, freq: 1046.50, volume: 0.5 } // C6
+                const m = [
+                    { t: 0.0, f: 523.25, v: 0.4 },
+                    { t: 0.1, f: 659.25, v: 0.4 },
+                    { t: 0.2, f: 783.99, v: 0.4 },
+                    { t: 0.3, f: 1046.50, v: 0.5 }
                 ];
-
-                melody.forEach((note) => {
-                    const oscillator = sharedAudioCtx.createOscillator();
-                    const gainNode = sharedAudioCtx.createGain();
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(sharedAudioCtx.destination);
-                    
-                    oscillator.type = 'sine';
-                    oscillator.frequency.setValueAtTime(note.freq, sharedAudioCtx.currentTime + note.time);
-                    
-                    gainNode.gain.setValueAtTime(note.volume, sharedAudioCtx.currentTime + note.time);
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, sharedAudioCtx.currentTime + note.time + 1.0);
-                    
-                    oscillator.start(sharedAudioCtx.currentTime + note.time);
-                    oscillator.stop(sharedAudioCtx.currentTime + note.time + 1.1);
+                m.forEach((n) => {
+                    const o = sharedAudioCtx.createOscillator();
+                    const g = sharedAudioCtx.createGain();
+                    o.connect(g); g.connect(sharedAudioCtx.destination);
+                    o.type = 'sine'; o.frequency.setValueAtTime(n.f, sharedAudioCtx.currentTime + n.t);
+                    g.gain.setValueAtTime(n.v, sharedAudioCtx.currentTime + n.t);
+                    g.gain.exponentialRampToValueAtTime(0.001, sharedAudioCtx.currentTime + n.t + 1.0);
+                    o.start(sharedAudioCtx.currentTime + n.t); o.stop(sharedAudioCtx.currentTime + n.t + 1.1);
                 });
-            } catch (err) {
-                console.error("Chime generation failed:", err);
-            }
+            } catch (err) {}
         }
 
-        function fireExtendedChimeAlert() {
+        function fireExtendedAlert() {
             if (!sharedAudioCtx) return;
             sharedAudioCtx.resume();
-
             playSingleChimePass();
-
-            let executionCount = 0;
-            const maxLoops = 6; 
-            
+            if ('vibrate' in navigator) { navigator.vibrate(500); }
+            let count = 0;
             repeatingInterval = setInterval(() => {
-                executionCount++;
-                if (executionCount >= maxLoops) {
+                count++;
+                if (count >= 6) {
                     clearInterval(repeatingInterval);
-                    muteBtn.classList.add('hidden'); 
+                    if ('vibrate' in navigator) { navigator.vibrate(0); }
+                    muteBtn.classList.add('hidden');
                     return;
                 }
                 playSingleChimePass();
+                if ('vibrate' in navigator) { navigator.vibrate(500); }
             }, 1500);
         }
 
@@ -180,30 +115,37 @@
             if (repeatingInterval) {
                 clearInterval(repeatingInterval);
                 repeatingInterval = null;
-                muteBtn.classList.add('hidden'); 
-                console.log("🔇 Sound engine loop silenced by client action command.");
+                if ('vibrate' in navigator) { navigator.vibrate(0); }
+                muteBtn.classList.add('hidden');
             }
         });
 
         startBtn.addEventListener('click', () => {
             const currentOrderNum = orderInput.value.trim();
             if (!currentOrderNum) return alert('Please enter an order number.');
-            activateiOSAudioEngine();
-            socket.emit('register-customer', currentOrderNum);
-            displayNumber.innerText = currentOrderNum;
-            readyOrderBadge.innerText = `#${currentOrderNum}`; 
             
+            activateiOSAudioEngine();
+            displayNumber.innerText = currentOrderNum;
+            readyOrderBadge.innerText = `#${currentOrderNum}`;
             setupScreen.classList.add('hidden');
             waitingScreen.classList.remove('hidden');
-        });
 
-        socket.on('notify-ready', () => {
-            waitingScreen.classList.add('hidden');
-            readyScreen.classList.remove('hidden');
-            fireExtendedChimeAlert();
-            if ('vibrate' in navigator) {
-                navigator.vibrate();
-            }
+            // FIXED ROUTING LINE: Using a relative URL path to bypass secure script blockages
+            trackingInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/check-status?loc=${storeLocation}&num=${currentOrderNum}`);
+                    const data = await response.json();
+                    
+                    if (data.ready) {
+                        clearInterval(trackingInterval);
+                        waitingScreen.classList.add('hidden');
+                        readyScreen.classList.remove('hidden');
+                        fireExtendedAlert();
+                    }
+                } catch (e) {
+                    console.log("Check skipped:", e);
+                }
+            }, 2000);
         });
     </script>
 </body>
