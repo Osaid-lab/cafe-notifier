@@ -12,31 +12,35 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'public')));
 
 io.on('connection', (socket) => {
-    console.log(`🔌 Connected: ${socket.id}`);
+    console.log(`🔌 Link connected: ${socket.id}`);
 
-    // Customer joins a room combining location and order number
+    // Customer joins a custom store room: e.g., "1-50" or "2-50"
     socket.on('register-customer', (data) => {
-        const location = String(data.location).trim().toLowerCase();
-        const orderNum = String(data.orderNumber).trim();
-        const uniqueRoomName = `${location}-${orderNum}`;
+        if (!data || !data.location || !data.orderNumber) return;
         
-        socket.join(uniqueRoomName); 
-        console.log(`🎯 Device ${socket.id} joined Room: ${uniqueRoomName}`);
+        const loc = String(data.location).trim().toLowerCase();
+        const num = String(data.orderNumber).trim();
+        const uniqueRoom = `${loc}-${num}`;
+        
+        socket.join(uniqueRoom); 
+        console.log(`🎯 Customer linked directly to Room: ${uniqueRoom}`);
     });
 
-    // Barista broadcasts an alert specifically to their store's room
+    // Barista targets ONLY their store's custom room partition
     socket.on('order-ready', (data) => {
-        const location = String(data.location).trim().toLowerCase();
-        const orderNum = String(data.orderNumber).trim();
-        const uniqueRoomName = `${location}-${orderNum}`;
+        if (!data || !data.location || !data.orderNumber) return;
         
-        console.log(`📣 Barista at [${location}] buzzing Room: ${uniqueRoomName}`);
+        const loc = String(data.location).trim().toLowerCase();
+        const num = String(data.orderNumber).trim();
+        const uniqueRoom = `${loc}-${num}`;
         
-        // Broadcasts ONLY to phones registered at this specific location with this order number
-        io.to(uniqueRoomName).emit('notify-ready');
+        console.log(`📣 Store #${loc} dispatched buzz tracking to Room: ${uniqueRoom}`);
+        
+        // Emits exclusively to the specific store room partition boundary walls
+        io.to(uniqueRoom).emit('notify-ready');
     });
 });
 
 server.listen(PORT, () => {
-    console.log(`🚀 Multi-Location System Online on Port ${PORT}!`);
+    console.log(`🚀 Multi-Location System Live on Port ${PORT}!`);
 });
