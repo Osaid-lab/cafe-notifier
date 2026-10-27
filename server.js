@@ -14,23 +14,29 @@ app.use(express.static(path.join(__dirname, 'public')));
 io.on('connection', (socket) => {
     console.log(`🔌 Connected: ${socket.id}`);
 
-    // Customer joins a room named after their order number
-    socket.on('register-customer', (orderNumber) => {
-        const roomName = String(orderNumber).trim();
-        socket.join(roomName); // Joins a virtual room just for this order number
-        console.log(`🎯 Device ${socket.id} joined Room: ${roomName}`);
+    // Customer joins a room combining location and order number
+    socket.on('register-customer', (data) => {
+        const location = String(data.location).trim().toLowerCase();
+        const orderNum = String(data.orderNumber).trim();
+        const uniqueRoomName = `${location}-${orderNum}`;
+        
+        socket.join(uniqueRoomName); 
+        console.log(`🎯 Device ${socket.id} joined Room: ${uniqueRoomName}`);
     });
 
-    // Barista broadcasts an alert directly to that order's room
-    socket.on('order-ready', (orderNumber) => {
-        const roomName = String(orderNumber).trim();
-        console.log(`📣 Barista buzzing all devices in Room: ${roomName}`);
+    // Barista broadcasts an alert specifically to their store's room
+    socket.on('order-ready', (data) => {
+        const location = String(data.location).trim().toLowerCase();
+        const orderNum = String(data.orderNumber).trim();
+        const uniqueRoomName = `${location}-${orderNum}`;
         
-        // Broadcasts to every single device inside that specific room number
-        io.to(roomName).emit('notify-ready');
+        console.log(`📣 Barista at [${location}] buzzing Room: ${uniqueRoomName}`);
+        
+        // Broadcasts ONLY to phones registered at this specific location with this order number
+        io.to(uniqueRoomName).emit('notify-ready');
     });
 });
 
 server.listen(PORT, () => {
-    console.log(`🚀 System Online on Port ${PORT}!`);
+    console.log(`🚀 Multi-Location System Online on Port ${PORT}!`);
 });
