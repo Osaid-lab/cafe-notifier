@@ -5,16 +5,24 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+
+// FIXED SECURITY PARAMETERS: Opening the gateway channels completely 
+// This forces Socket.io to accept connection pings from any external phone or tablet browser
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
 io.on('connection', (socket) => {
-    console.log(`🔌 Link connected: ${socket.id}`);
+    console.log(`🔌 Link connected successfully: ${socket.id}`);
 
-    // Customer joins a custom store room: e.g., "1-50" or "2-50"
+    // Customer logs in with their location payload
     socket.on('register-customer', (data) => {
         if (!data || !data.location || !data.orderNumber) return;
         
@@ -23,10 +31,10 @@ io.on('connection', (socket) => {
         const uniqueRoom = `${loc}-${num}`;
         
         socket.join(uniqueRoom); 
-        console.log(`🎯 Customer linked directly to Room: ${uniqueRoom}`);
+        console.log(`🎯 Customer joined isolated room grid: ${uniqueRoom}`);
     });
 
-    // Barista targets ONLY their store's custom room partition
+    // Barista dispatches alert specifically to their store room boundary walls
     socket.on('order-ready', (data) => {
         if (!data || !data.location || !data.orderNumber) return;
         
@@ -34,13 +42,17 @@ io.on('connection', (socket) => {
         const num = String(data.orderNumber).trim();
         const uniqueRoom = `${loc}-${num}`;
         
-        console.log(`📣 Store #${loc} dispatched buzz tracking to Room: ${uniqueRoom}`);
+        console.log(`📣 Store #${loc} dispatched a buzz alert directly to Room: ${uniqueRoom}`);
         
-        // Emits exclusively to the specific store room partition boundary walls
+        // Emits strictly to the matching location-order number partition layout
         io.to(uniqueRoom).emit('notify-ready');
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`❌ Device disconnected: ${socket.id}`);
     });
 });
 
 server.listen(PORT, () => {
-    console.log(`🚀 Multi-Location System Live on Port ${PORT}!`);
+    console.log(`🚀 Multi-Store Alert Switchboard Active on Port ${PORT}!`);
 });
