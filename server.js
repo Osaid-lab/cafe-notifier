@@ -1,58 +1,45 @@
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
-const server = http.createServer(app);
-
-// FIXED SECURITY PARAMETERS: Opening the gateway channels completely 
-// This forces Socket.io to accept connection pings from any external phone or tablet browser
-const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
-
 const PORT = process.env.PORT || 3000;
 
+// Allow any device to talk to the server safely
+app.use(cors());
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-io.on('connection', (socket) => {
-    console.log(`🔌 Link connected successfully: ${socket.id}`);
+// Simple in-memory tracker: { "storeNumber-orderNumber": true/false }
+let readyOrders = {};
 
-    // Customer logs in with their location payload
-    socket.on('register-customer', (data) => {
-        if (!data || !data.location || !data.orderNumber) return;
-        
-        const loc = String(data.location).trim().toLowerCase();
-        const num = String(data.orderNumber).trim();
-        const uniqueRoom = `${loc}-${num}`;
-        
-        socket.join(uniqueRoom); 
-        console.log(`🎯 Customer joined isolated room grid: ${uniqueRoom}`);
-    });
+// 1. Customer checks if their order is ready (Runs every 2 seconds)
+app.get('/api/check-status', (req, res) => {
+    const loc = String(req.query.loc).trim().toLowerCase();
+    const num = String(req.query.num).trim();
+    const uniqueKey = `${loc}-${num}`;
 
-    // Barista dispatches alert specifically to their store room boundary walls
-    socket.on('order-ready', (data) => {
-        if (!data || !data.location || !data.orderNumber) return;
-        
-        const loc = String(data.location).trim().toLowerCase();
-        const num = String(data.orderNumber).trim();
-        const uniqueRoom = `${loc}-${num}`;
-        
-        console.log(`📣 Store #${loc} dispatched a buzz alert directly to Room: ${uniqueRoom}`);
-        
-        // Emits strictly to the matching location-order number partition layout
-        io.to(uniqueRoom).emit('notify-ready');
-    });
+    if (readyOrders[uniqueKey]) {
+        // If it's ready, clear it out of memory and tell the phone to buzz!
+        delete readyOrders[uniqueKey];
+        return res.json({ ready: true });
+    }
 
-    socket.on('disconnect', () => {
-        console.log(`❌ Device disconnected: ${socket.id}`);
-    });
+    res.json({ ready: false });
 });
 
-server.listen(PORT, () => {
-    console.log(`🚀 Multi-Store Alert Switchboard Active on Port ${PORT}!`);
+// 2. Barista marks an order as ready
+app.post('/api/buzz-order', (req, res) => {
+    const loc = String(req.body.location).trim().toLowerCase();
+    const num = String(req.body.orderNumber).trim();
+    const uniqueKey = `${loc}-${num}`;
+
+    readyOrders[uniqueKey] = true;
+    console.log(`🚀 Store #${loc} marked Order #${num} as READY!`);
+    
+    res.json({ success: true });
+});
+
+app.listen(PORT, () => {
+    console.log(`🚀 Qamaria Core Alert Engine Live on port ${PORT}!`);
 });
